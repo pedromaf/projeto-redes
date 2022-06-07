@@ -19,13 +19,22 @@ def main():
         (client_socket, client_address) = server_socket.accept()
 
         while True:
-            data = client_socket.recv(1024)
+            data = client_socket.recv(1024).decode("utf-8")
 
-            if(data != b''):
-                print(data)
-                message = "Testando servidor-cliente."
-                client_socket.send(message.encode())
+            if(data.startswith("<JOIN>")):
+                client_nickname = data[6:]
+                print(f">> {client_nickname} joined the chat <<")
+                client_socket.send("<JOINCONFIRMATION>".encode("utf-8"))
+            elif(data.startswith("<LEAVE>")):
+                client_nickname = data[7:]
+                print(f">> {client_nickname} disconnected! <<")
                 break
+            else:
+                print(data)
+                client_socket.send("<MESSAGECONFIRMATION>".encode("utf-8"))
+        break
+
+    server_socket.close()
 
 
 if __name__ == '__main__':
