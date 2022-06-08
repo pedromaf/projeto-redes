@@ -1,8 +1,8 @@
 import socket
 import threading
 
-host = "127.0.0.1"
-port = 6666
+host = socket.gethostbyname(socket.gethostname())
+port = 50999
 clients = []
 clients_addresses = []
 nicknames = []
@@ -58,32 +58,36 @@ def message_handler(message, client):
     client_index = clients.index(client)
     client_nickname = nicknames[client_index]
 
-    if(message.startswith("<LEAVE>")):  # Client command to leave the chat.
+    if(message == "/leave"):  # Client command to leave the chat.
         # Get all client data references to remove it from the server and close the client's connection.
         client_address = clients_addresses[client_index]
-        client.close()
         clients.remove(client)
         clients_addresses.remove(client_address)
         nicknames.remove(client_nickname)
+        client.close()
 
         print(f">> {client_nickname} disconnected! <<")
+
+        return False
     else:
         formatted_message = f"{client_nickname}:  {message}"
         broadcast(formatted_message)
 
+        return True
 
 def handle_client(client):
     while True:
         try:
             message = client.recv(1024).decode("utf-8")
-            message_handler(message, client)
+            if(not message_handler(message, client)):
+                break
         except:
             client_index = clients.index(client)
             clients.remove(client)
-            client.close()
             client_nickname = nicknames[client_index]
             broadcast(f">> {client_nickname} lost connection! <<")
             nicknames.remove(client_nickname)
+            client.close()
             break
 
 
@@ -95,11 +99,14 @@ def receive():
 
         # Receiving client nickname.
         while True:
-            client_nickname = client.recv(1024).decode("utf-8")
-            if(client_nickname in nicknames):
-                client.send("FALSE".encode("utf-8"))
-            else:
-                break
+            try:
+                client_nickname = client.recv(1024).decode("utf-8")
+                if(client_nickname in nicknames):
+                    client.send("FALSE".encode("utf-8"))
+                else:
+                    break
+            except:
+                print("An unexpected error has occurred!")
 
         # Adding the new connected client, its address and nickname to the respective lists.
         nicknames.append(client_nickname)

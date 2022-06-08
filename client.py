@@ -1,67 +1,137 @@
-from socket import *
+import socket
+import threading
 
-'''
-    Creates a string formatted with the nickname and the message of the sender.
-    If the message text is "/leave" it will be used later as an internal command to disconnect from server.
-'''
-def create_message(nickname):
-    message = f"{nickname}: "
-    input_message = input(">> ")
+stop_threads = False
 
-    if(input_message.lower() == "/leave"):
-        return ("/leave")
 
-    return (f"{message}{input_message}")
+def create_socket():
+    """
+        Creates a global socket (client_socket) using TCP and IPv4 protocols.
+
+        :return: True if the socket is created successfully otherwise, returns False.
+    """
+    try:
+        global client_socket
+        # Creating an TCP (type=SOCK_STREAM) socket using IPv4 (family=AF_INET).
+        client_socket = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        return True
+    except socket.error as msg:
+        print(f"Socket creation error: {str(msg)}\n")
+        return False
+
+
+def connect_server(address, port):
+    # Starting the connection with the server.
+    client_socket.connect((address, port))
+
+
+def get_user_nickname():
+    """
+        Gets the nickname input from the user and returns it as a string.
+        The user input can't be empty and should be between 4 and 10 characters.
+    """
+    while True:
+        print("Enter a nickname with 4 to 10 characters.")
+        nickname = input("Nickname: ")
+        if(4 <= len(nickname) <= 10):
+            return nickname
+        else:
+            print("Invalid nickname.\n")
+
+
+def nickname_handler():
+    global stop_threads
+    while True:
+        try:
+            # Nickname to identify the sender at the chat room.
+            client_nickname = get_user_nickname()
+
+            # Sending nickname to be validated.
+            client_socket.send(f"{client_nickname}".encode("utf-8"))
+
+            # Validation response.
+            response = client_socket.recv(1024).decode("utf-8")
+
+            if(response == "False"):
+                print("This nickname is already in use! Try another one.")
+            else:
+                break
+        except:
+            print("An unexpected error has occurred. Closing connection.")
+            client_socket.close()
+            stop_threads = True
+            break
+
+
+def create_message():
+    """
+        Creates a string formatted with the nickname and the message of the sender and returns it as a string.
+        If the message text is an internal command, it will be returned without sender's nickname.
+        The user input can't be empty.
+    """
+    while True:
+        message = input("")
+        if(len(message)):
+            break
+
+    if(message.lower() == "/leave" or message.lower().startswith("/leave ")):
+        return "/leave".encode("utf-8")
+
+    return message.encode("utf-8")
+
+
+def client_receive():
+    global stop_threads
+    while(not stop_threads):
+        try:
+            message = client_socket.recv(1024).decode("utf-8")
+
+            if(message != ""):
+                print(message)
+            else:
+                stop_threads = True
+                print("An unexpected error has occurred! Closing connection.")
+
+        except:
+            stop_threads = True
+            client_socket.close()
+            print("An error has occurred. You got disconnected from the server!")
+
+
+def client_send():
+    global stop_threads
+    while(not stop_threads):
+        message = create_message()
+
+        if (message == "/leave"):
+            # Sending a disconnection message to the server.
+            client_socket.send(message)
+            stop_threads = True
+        else:
+            client_socket.send(message)
 
 
 def main():
     # Defining the server IP and Port Number to be connected.
     server_address = "127.0.0.1"
-    server_port = 6666
+    server_port = 50999
 
-    # Creating a socket that uses TCP and IPv4.
-    client_socket = socket(family=AF_INET, type=SOCK_STREAM)
+    create_socket()
 
-    # Nickname to identify the sender at the chat room.
-    client_nickname = input("Nickname: ")
+    connect_server(server_address, server_port)
 
-    # Starting the connection with the server.
-    client_socket.connect((server_address, server_port))
+    # Sending a message that contains the client nickname.
+    nickname_handler()
+    print("You joined the chat!")
 
-    # Sending a message tagged with <JOIN> indicating the client's connection on the chat chanel.
-    # The <JOIN> tag is followed by the client's nickname.
-    client_socket.send(f"<JOIN>{client_nickname}".encode("utf-8"))
+    receive_thread = threading.Thread(target=client_receive)
+    send_thread = threading.Thread(target=client_send)
 
-    # Catching a message tagged with <JOINCONFIRMATION>, confirming the client's join message.
-    data = client_socket.recv(1024).decode("utf-8")
-    if(data == "<JOINCONFIRMATION>"):
-        print(">> You joined the chat channel! <<")
+    receive_thread.start()
+    send_thread.start()
 
-    while True:
-        # Building a correctly formatted message to be send ("Nickname: msg\n").
-        message = create_message(client_nickname)
-
-        # Handles the command to end the connection with the server.
-        if(message == "/leave"):
-            # Sending a disconnection message to the server.
-            # The message is tagged with <LEAVE> and followed by the client's nickname.
-            leave_message = f"<LEAVE>{client_nickname}"
-            client_socket.send(leave_message.encode("utf-8"))
-            break
-
-        # Sending the text message created at create_message() function.
-        client_socket.send(message.encode("utf-8"))
-
-        # Stores a string response from the server and prints it.
-        # TODO: This will be modified in the future to receive the other clients messages redirected from the server.
-        data = client_socket.recv(1024).decode("utf-8")
-        if(data == "<MESSAGECONFIRMATION>"):
-            continue
-        else:
-            print(f"{data}\n")
-
-    # Closes the socket, ending the TCP connection with the server.
-    client_socket.close()
+    #  receive_thread.join()
+    #  send_thread.join()
 
 
 if(__name__ == "__main__"):
