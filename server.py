@@ -1,5 +1,6 @@
 import socket
 import threading
+import sys
 
 host = socket.gethostbyname(socket.gethostname())
 port = 50999
@@ -49,9 +50,10 @@ def bind_socket():
         return False
 
 
-def broadcast(message):
+def broadcast(message, clientSender = ""):
     for client in clients:
-        client.send(message.encode("utf-8"))
+        if client != clientSender:
+            client.send(message.encode("utf-8"))
 
 
 def message_handler(message, client):
@@ -66,12 +68,13 @@ def message_handler(message, client):
         nicknames.remove(client_nickname)
         client.close()
 
-        print(f">> {client_nickname} disconnected! <<")
+        print(f"{client_nickname} disconnected!")
+        broadcast(f">> {client_nickname} disconnected! <<")
 
         return False
     else:
         formatted_message = f"{client_nickname}:  {message}"
-        broadcast(formatted_message)
+        broadcast(formatted_message, clients[client_index])
 
         return True
 
@@ -107,6 +110,7 @@ def receive():
                     break
             except:
                 print("An unexpected error has occurred!")
+                sys.exit()
 
         # Adding the new connected client, its address and nickname to the respective lists.
         nicknames.append(client_nickname)
@@ -118,8 +122,8 @@ def receive():
 
         # Starts a thread to handle the new client connection and saves its reference in the list.
         thread = threading.Thread(target=handle_client, args=[client])
-        threads.append(thread)
         thread.start()
+        threads.append(thread)
 
 
 def main():

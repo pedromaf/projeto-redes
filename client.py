@@ -88,6 +88,8 @@ def client_receive():
 
             if(message != ""):
                 print(message)
+            elif(stop_threads):
+                pass
             else:
                 stop_threads = True
                 print("An unexpected error has occurred! Closing connection.")
@@ -103,7 +105,7 @@ def client_send():
     while(not stop_threads):
         message = create_message()
 
-        if (message == "/leave"):
+        if (message == "/leave".encode("utf-8")):
             # Sending a disconnection message to the server.
             client_socket.send(message)
             stop_threads = True
@@ -113,7 +115,7 @@ def client_send():
 
 def main():
     # Defining the server IP and Port Number to be connected.
-    server_address = "127.0.0.1"
+    server_address = "192.168.0.51"
     server_port = 50999
 
     create_socket()
@@ -122,7 +124,8 @@ def main():
 
     # Sending a message that contains the client nickname.
     nickname_handler()
-    print("You joined the chat!")
+    print("\nYou joined the chat!")
+    print("Type '/leave' to exit.\n")
 
     receive_thread = threading.Thread(target=client_receive)
     send_thread = threading.Thread(target=client_send)
